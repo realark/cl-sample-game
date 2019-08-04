@@ -1,0 +1,40 @@
+# trigger:
+#   branches:
+#     include: ['master']
+#   tags:
+#     include: ['*']
+
+trigger:
+- master
+
+jobs:
+  - job: 'Cross'
+    strategy:
+      matrix:
+        # mac:
+        #   target: 'x86_64-apple-darwin'
+        #   imageName: 'macos-10.13'
+        # win:
+        #   target: 'x86_64-windows-10'
+        #   imageName: 'vs2017-win2016'
+        lin:
+          target: 'x86_64-unknown-linux-gnu'
+          imageName: 'ubuntu-16.04'
+    pool:
+      vmImage: $(imageName)
+    steps:
+      - bash: |
+          DATE="$(date +%Y-%m-%d)"
+          echo "##vso[task.setvariable variable=build.date]$DATE"
+        displayName: "Create date variable"
+      - bash: |
+          MY_TAG="$(Build.SourceBranch)"
+          MY_TAG=${MY_TAG#refs/tags/}
+          echo $MY_TAG
+          echo "##vso[task.setvariable variable=build.my_tag]1"
+        displayName: "Create my tag variable"
+      - script: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends gnupg ca-certificates && sudo echo "deb http://ppa.launchpad.net/darabi/lisp/ubuntu bionic main" > /etc/apt/sources.list.d/darabi-lisp.list && apt-key add /tmp/launchpad-ppa-gpg.key
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends sbcl
+        displayName: Linux Install SBCL
+        condition: eq( variables['Agent.OS'], 'Linux' )
