@@ -54,3 +54,8 @@ jobs:
             curl -O http://beta.quicklisp.org/quicklisp.lisp
             sbcl --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql-util:without-prompting (quicklisp:add-to-init-file))' --eval '(quit)'
         displayName: Install Quicklisp
+      - script: |
+            mkdir -p $HOME/quicklisp/local-projects/
+            ln -s $HOME/quicklisp/local-projects/cl-sample-game `pwd`
+            make
+        displayName: Build Artifacts

@@ -1,9 +1,4 @@
-(in-package :cl-user)
-
-(defpackage :ark.sample-game
-  (:use :cl))
-
-(in-package :ark.sample-game)
+(in-package :cl-sample-game)
 
 (defun main ()
   (format t
