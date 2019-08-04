@@ -72,3 +72,7 @@ jobs:
           archiveType: 'tar'
           tarCompression: 'gz'
           archiveFile: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
+      - task: DownloadBuildArtifacts@0
+        condition: succeeded()
+        inputs:
+          downloadPath: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
