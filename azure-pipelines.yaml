@@ -4,7 +4,6 @@
 #   tags:
 #     include: ['*']
 variables:
-  SBCL_MAKE_TARGET_2_OPTIONS: --disable-ldb --disable-debugger
   SBCL_VERSION: sbcl-1.5.5
 
 trigger:
@@ -56,6 +55,20 @@ jobs:
         displayName: Install Quicklisp
       - script: |
             mkdir -p $HOME/quicklisp/local-projects/
-            ln -s $HOME/quicklisp/local-projects/cl-sample-game `pwd`
-            make
+            ln -s '$(Build.SourcesDirectory)' $HOME/quicklisp/local-projects/cl-sample-game
+            sbcl --load build-game.lisp
         displayName: Build Artifacts
+      - task: CopyFiles@2
+        displayName: Copy assets
+        inputs:
+          sourceFolder: '$(Build.SourcesDirectory)'
+          contents: |
+            sample-game-linux
+          targetFolder: '$(Build.BinariesDirectory)'
+      - task: ArchiveFiles@2
+        displayName: Gather assets
+        inputs:
+          rootFolderOrFile: '$(Build.BinariesDirectory)'
+          archiveType: 'tar'
+          tarCompression: 'gz'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
