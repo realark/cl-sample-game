@@ -3,6 +3,9 @@
 #     include: ['master']
 #   tags:
 #     include: ['*']
+variables:
+  SBCL_MAKE_TARGET_2_OPTIONS: --disable-ldb --disable-debugger
+  SBCL_VERSION: sbcl-1.5.5
 
 trigger:
 - master
@@ -38,3 +41,16 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends sbcl
         displayName: Linux Install SBCL
         condition: eq( variables['Agent.OS'], 'Linux' )
+      - script: |
+            git clone https://github.com/sbcl/sbcl
+            cd sbcl
+            git checkout SBCL_VERSION
+            sh make.sh --prefix=$SBCL_HOME --with-sb-thread
+            sudo sh install.sh
+        displayName: Linux Build Special SBCL
+        condition: ne( variables['Agent.OS'], 'Windows_NT' )
+      - bash: |
+            cd $HOME
+            curl -O http://beta.quicklisp.org/quicklisp.lisp
+            sbcl --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql-util:without-prompting (quicklisp:add-to-init-file))' --eval '(quit)'
+        displayName: Install Quicklisp
