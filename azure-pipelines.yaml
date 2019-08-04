@@ -40,14 +40,14 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends sbcl
         displayName: Linux Install SBCL
         condition: eq( variables['Agent.OS'], 'Linux' )
-      - script: |
-            git clone https://github.com/sbcl/sbcl
-            cd sbcl
-            git checkout SBCL_VERSION
-            sh make.sh --prefix=$SBCL_HOME --with-sb-thread
-            sudo sh install.sh
-        displayName: Linux Build Special SBCL
-        condition: ne( variables['Agent.OS'], 'Windows_NT' )
+      # - script: |
+      #       git clone https://github.com/sbcl/sbcl
+      #       cd sbcl
+      #       git checkout SBCL_VERSION
+      #       sh make.sh --prefix=$SBCL_HOME --with-sb-thread
+      #       sudo sh install.sh
+      #   displayName: Linux Build Special SBCL
+      #   condition: ne( variables['Agent.OS'], 'Windows_NT' )
       - bash: |
             cd $HOME
             curl -O http://beta.quicklisp.org/quicklisp.lisp
@@ -72,7 +72,7 @@ jobs:
           archiveType: 'tar'
           tarCompression: 'gz'
           archiveFile: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
-      - task: DownloadBuildArtifacts@0
-        condition: succeeded()
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Game Artifact'
         inputs:
-          downloadPath: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
