@@ -2,6 +2,7 @@
 
 (in-package :cl-sample-game)
 
+
 (sb-ext:save-lisp-and-die
  (or
   #+win32"sample-game-windows.exe"

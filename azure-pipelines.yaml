@@ -3,51 +3,129 @@
 #     include: ['master']
 #   tags:
 #     include: ['*']
-variables:
-  SBCL_VERSION: sbcl-1.5.5
-
 trigger:
 - master
 
+variables:
+  SBCL_VERSION: sbcl-1.5.5
+  SBCL_OPTIONS: "--with-sb-thread"
+
 jobs:
-  - job: 'Cross'
+  - job: 'CrossCompile'
     strategy:
       matrix:
-        # mac:
-        #   target: 'x86_64-apple-darwin'
-        #   imageName: 'macos-10.13'
-        # win:
-        #   target: 'x86_64-windows-10'
-        #   imageName: 'vs2017-win2016'
-        lin:
-          target: 'x86_64-unknown-linux-gnu'
-          imageName: 'ubuntu-16.04'
+        mac:
+          target: 'x86_64-apple-darwin'
+          imageName: 'macos-10.13'
+        win:
+          target: 'x86_64-windows-10'
+          imageName: 'vs2017-win2016'
     pool:
       vmImage: $(imageName)
     steps:
-      - bash: |
-          DATE="$(date +%Y-%m-%d)"
-          echo "##vso[task.setvariable variable=build.date]$DATE"
-        displayName: "Create date variable"
-      - bash: |
-          MY_TAG="$(Build.SourceBranch)"
-          MY_TAG=${MY_TAG#refs/tags/}
-          echo $MY_TAG
-          echo "##vso[task.setvariable variable=build.my_tag]1"
-        displayName: "Create my tag variable"
       - script: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends gnupg ca-certificates && sudo echo "deb http://ppa.launchpad.net/darabi/lisp/ubuntu bionic main" > /etc/apt/sources.list.d/darabi-lisp.list && apt-key add /tmp/launchpad-ppa-gpg.key
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends sbcl
-        displayName: Linux Install SBCL
+            curl -L https://sourceforge.net/projects/sbcl/files/sbcl/1.2.11/sbcl-1.2.11-x86-64-darwin-binary.tar.bz2/download?use_mirror=astuteinternet > darwin.tar.bz2
+            bzip2 -cd darwin.tar.bz2 | tar xvf -
+            cd sbcl-1.2.11-x86-64-darwin
+            sh install.sh
+        displayName: Mac Install SBCL
+        condition: eq( variables['Agent.OS'], 'Darwin' )
+      - script: |
+            curl -L https://sourceforge.net/projects/sbcl/files/sbcl/1.4.14/sbcl-1.4.14-x86-64-windows-binary.msi/download?use_mirror=pilotfiber > windows.msi
+            msiexec.exe /qn /i windows.msi
+            @echo ##vso[task.prependpath]C:\Program Files\sbcl\bin\
+            @echo ##vso[task.setvariable variable=sbcl_home]C:\Program Files\sbcl\lib\sbcl
+        displayName: Windows Install SBCL
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+      - script: |
+            cd $HOME
+            git clone https://github.com/sbcl/sbcl
+            cd sbcl
+            git checkout $(SBCL_VERSION)
+            sh make.sh --prefix=$SBCL_HOME $(SBCL_OPTIONS)
+            sudo sh install.sh
+        displayName: Build Special SBCL
+        condition: ne( variables['Agent.OS'], 'Windows_NT' )
+      - bash: |
+            git clone https://github.com/sbcl/sbcl
+            cd sbcl
+            git checkout $(SBCL_VERSION)
+            export PATH="/c/Program Files/Steel Bank Common Lisp/1.4.14:$PATH"
+            export SBCL_HOME="/c/Program Files/Steel Bank Common Lisp/1.4.14"
+            sh make.sh $(SBCL_OPTIONS)
+            export SBCL_HOME=""
+            sh install.sh
+        displayName: Windows Build Special SBCL
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+      - bash: |
+            cd $HOME
+            curl -O http://beta.quicklisp.org/quicklisp.lisp
+            sbcl --load quicklisp.lisp --eval '(quicklisp-quickstart:install)' --eval '(ql-util:without-prompting (quicklisp:add-to-init-file))' --eval '(quit)'
+        displayName: Install Quicklisp
+      - bash: |
+            mkdir -p $HOME/quicklisp/local-projects/
+            ln -s '$(Build.SourcesDirectory)' $HOME/quicklisp/local-projects/cl-sample-game
+        displayName: Non-Windows Link Local Project
+        condition: ne( variables['Agent.OS'], 'Windows_NT' )
+      - bash: |
+            echo "make folder"
+            mkdir -p "$HOME/quicklisp/local-projects/"
+            echo "do linking"
+            export WIN_HOME=`echo $HOME | sed -r 's#^/c#C:#g'`
+            cmd <<< "mklink /D \"${WIN_HOME//\//\\}\\quicklisp\\local-projects\cl-sample-game\" \"$(Build.SourcesDirectory)\""
+        displayName: Windows Link Local Project
+        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+      - script: |
+            export DYLD_LIBRARY_PATH="./"
+            sbcl --load build-game.lisp
+        displayName: Build Game
+      - task: CopyFiles@2
+        displayName: Copy assets
+        inputs:
+          sourceFolder: '$(Build.SourcesDirectory)'
+          contents: |
+            sample-game-osx
+            libSDL2.dylib
+            sample-game-windows.exe
+            SDL2.dll
+          targetFolder: '$(Build.ArtifactStagingDirectory)'
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Game Artifact'
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+  - job: 'CrossCompileLinux'
+    strategy:
+      matrix:
+        linux:
+          target: 'x86_64-unknown-linux-gnu'
+          imageName: 'ubuntu-16.04'
+          containerImage: ubuntu:18.04
+          containerOptions: "--name ci-container -v /usr/bin/docker:/tmp/docker:ro"
+    pool:
+      vmImage: $(imageName)
+    container:
+      image: $(containerImage)
+      options: $(containerOptions)
+    steps:
+      - script: |
+          /tmp/docker exec -t -u 0 ci-container \
+          sh -c "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confold" -y install sudo"
+        displayName: "Set up sudo"
         condition: eq( variables['Agent.OS'], 'Linux' )
-      # - script: |
-      #       git clone https://github.com/sbcl/sbcl
-      #       cd sbcl
-      #       git checkout SBCL_VERSION
-      #       sh make.sh --prefix=$SBCL_HOME --with-sb-thread
-      #       sudo sh install.sh
-      #   displayName: Linux Build Special SBCL
-      #   condition: ne( variables['Agent.OS'], 'Windows_NT' )
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gnupg ca-certificates && sudo echo "deb http://ppa.launchpad.net/darabi/lisp/ubuntu bionic main" > /etc/apt/sources.list.d/darabi-lisp.list && apt-key add /tmp/launchpad-ppa-gpg.key
+          sudo apt-get install -y --no-install-recommends sbcl curl git libglx0 libopengl0 libgl1-mesa-dev build-essential
+        displayName: Linux Install Software
+        condition: eq( variables['Agent.OS'], 'Linux' )
+      - script: |
+            cd $HOME
+            git clone https://github.com/sbcl/sbcl
+            cd sbcl
+            git checkout $(SBCL_VERSION)
+            sh make.sh --prefix=$SBCL_HOME $(SBCL_OPTIONS)
+            sudo sh install.sh
+        displayName: Build Special SBCL
       - bash: |
             cd $HOME
             curl -O http://beta.quicklisp.org/quicklisp.lisp
@@ -56,7 +134,9 @@ jobs:
       - script: |
             mkdir -p $HOME/quicklisp/local-projects/
             ln -s '$(Build.SourcesDirectory)' $HOME/quicklisp/local-projects/cl-sample-game
-            sbcl --load build-game.lisp
+            echo "-- sdl ld path --"
+            ldd libSDL2-2.0.so.0
+            LD_LIBRARY_PATH="./" sbcl --load build-game.lisp
         displayName: Build Game
       - task: CopyFiles@2
         displayName: Copy assets
@@ -64,15 +144,9 @@ jobs:
           sourceFolder: '$(Build.SourcesDirectory)'
           contents: |
             sample-game-linux
-          targetFolder: '$(Build.BinariesDirectory)'
-      - task: ArchiveFiles@2
-        displayName: Gather assets
-        inputs:
-          rootFolderOrFile: '$(Build.BinariesDirectory)'
-          archiveType: 'tar'
-          tarCompression: 'gz'
-          archiveFile: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
+            libSDL2-2.0.so.0
+          targetFolder: '$(Build.ArtifactStagingDirectory)'
       - task: PublishBuildArtifacts@1
         displayName: 'Publish Game Artifact'
         inputs:
-          PathtoPublish: '$(Build.ArtifactStagingDirectory)/main-$(TARGET).tar.gz'
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
