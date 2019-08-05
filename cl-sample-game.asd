@@ -8,4 +8,5 @@
   :pathname "src/"
   :serial T
   :components ((:file "packages")
-               (:file "cl-sample-game")))
+               (:file "cl-sample-game"))
+  :depends-on (:sdl2/examples))

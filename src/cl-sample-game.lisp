@@ -9,4 +9,5 @@
           "Platform: ~A~%"
           (cond #+darwin(t "OSX")
                 #+win32(t "Windows")
-                #+linux(t "Linux"))))
+                #+linux(t "Linux")))
+  (sdl2-examples:basic-test))
