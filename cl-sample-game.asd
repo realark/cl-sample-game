@@ -2,6 +2,9 @@
 (in-package :asdf-user)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  #+linux
+  (sb-posix:setenv "LD_LIBRARY_PATH" "./" 1)
+  #+win32
   (sb-posix:setenv "PATH" "./" 1))
 
 (defsystem cl-sample-game
